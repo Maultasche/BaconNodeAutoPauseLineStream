@@ -1,6 +1,6 @@
 {
   "name": "bacon-node-autopause-line-stream",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Converts a Node.js readable stream to a Bacon stream that emits lines of text, pausing itself every time a line of text is emitted",
   "main": "src/index.js",
   "repository": "https://github.com/Maultasche/BaconNodeAutoPauseLineStream.git",
