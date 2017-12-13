@@ -6,6 +6,8 @@ Each value that is emitted from one of these autopause streams is an object with
 
 So if the Node.js readable stream contains two lines of text (separated by a '\n' character), the corresponding Bacon stream will emit a single event, containing a single line of text and a resume function. After calling the resume function, the stream will emit another line of text and a resume function. Calling resume() again will cause the stream to end, because it has no more lines of text to emit.
 
+There is only one instance of a resume() function per stream, and it is included with every event for the sake of convenience and consistency. You can cache the very first instance of the resume() function that is emitted from a stream and use for the entire lifetime of the stream. 
+
 ## Installing
 
 Via npm:
