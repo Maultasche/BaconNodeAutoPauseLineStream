@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "baconjs": "^0.7.95",
-    "queuejs": "^0.1.0"
+    "queuejs": "^0.1.0",
+    "stream-array": "^1.1.2"
   }
 }
