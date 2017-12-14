@@ -43,7 +43,7 @@ describe('testing the creation of line stream', () => {
 	test('correctly streams a very large amount of text', () => {		
 		const testData = "Gold\nSilver\nTitanium\nBronze\nNickel\nCobalt\nAlgae\nCopper";
 			
-		//return testLineStreamWithData(testData.repeat(10000));
+		return testLineStreamWithData(testData.repeat(10000));
 	});
 	
 	test('tests the resume functionality when we resume the stream 0 times', () => {		
@@ -70,34 +70,51 @@ describe('testing the creation of line stream', () => {
 		return testLineStreamResumption(testData.repeat(50), 0);
 	})
 	
+	describe('tests that the line stream successfully streams lines that are added to ' +
+	'the stream in various chunk sizes', () => {
+		const testData = "Gold\nSilver\nTitanium\nBronze\nNickel\nCobalt\nAlgae\nCopper";
+		
+		//Run tests with chunk sizes ranging from a single line per chunk to all the lines
+		//in a single chunk
+		const numOfLines = testData.split('\n').length;
+		
+		_.range(1, numOfLines)
+			.forEach(lineCount => {
+				test(`tests that the line stream successfully streams lines using chunks ` +
+				`of ${numOfLines} lines`, () => {
+					return testLineStreamWithChunks(testData, lineCount);
+				});
+			});
+	});
+	
 	/**
 	 * Tests the line stream with a particular set of test data
 	 *
 	 * @param data - a string containing the text to use as test data
 	 */
 	function testLineStreamWithData(data) {
+		//Create the readable Node.js stream
+		const readStream = createSingleChunkReadStream(data);
+		
+		//Break the string apart into lines so that we can compare the 
+		//expected lines vs the actual lines emitted by the Bacon stream
+		let expectedLines = calculateExpectedLines(data);
+		
+		return testLineStreamWithNodeStream(readStream, expectedLines);
+	}
+	
+	/**
+	 * Tests the line stream using a particular readable stream
+	 *
+	 * @param {Object} readStream - a Node readable stream that emits 
+	 *	lines of text
+	 * @param {string[]} expectedLines - an array containing the expected
+	 *	lines of text that should be emitted from the line stream
+	 */
+	function testLineStreamWithNodeStream(readStream, expectedLines) {
 		//We have to wrap all this in a promise so that the test runner
 		//will wait until the asynchronous code has had a chance to complete
 		return new Promise((resolve, reject) => {
-			//Create the readable Node.js stream
-			const readStream = new stream.Readable();
-			readStream._read = () => {};
-			readStream.push(data);
-			readStream.push(null);
-			
-			//Break the string apart into lines so that we can compare the 
-			//expected lines vs the actual lines emitted by the Bacon stream
-			//We also need to remove any empty strings from the end of the expected
-			//lines, since those won't be emitted
-			let expectedLines = data.split('\n')
-				.reduce((array, item, index, originalArray) => {
-					if(item !== "" || index !== originalArray.length - 1) {
-						array.push(item);
-					}
-					
-					return array;
-				}, []);
-			
 			//Handle any read stream errors
 			readStream.on('error', error => reject(error));
 			
@@ -143,24 +160,11 @@ describe('testing the creation of line stream', () => {
 		expect(resumeCount).toBeDefined();
 		
 		//Create the readable Node.js stream
-		const readStream = new stream.Readable();
-		readStream._read = () => {};
-		//data.split('\n').forEach(item => readStream.push(item + '\n'));
-		readStream.push(data);
-		readStream.push(null);
+		const readStream = createSingleChunkReadStream(data);
 		
 		//Break the string apart into lines so that we can compare the 
 		//expected lines vs the actual lines emitted by the Bacon stream
-		//We also need to remove any empty strings from the end of the expected
-		//lines, since those won't be emitted
-		let expectedLines = data.split('\n')
-			.reduce((array, item, index, originalArray) => {
-				if(item !== "" || index !== originalArray.length - 1) {
-					array.push(item);
-				}
-				
-				return array;
-			}, []);
+		let expectedLines = calculateExpectedLines(data);
 		
 		//Take the first N elements form the expected lines to match the number
 		//times we will resume the stream
@@ -224,9 +228,21 @@ describe('testing the creation of line stream', () => {
 	 * @param {Array.<string>} data - a string containing the text to use as test data
 	 * @param {number} lineCount - The number of lines of text to include
 	 *  in a particular chunk emitted by the read stream
+	 * @returns a promise that is resolved when the test is complete
 	 */
 	function testLineStreamWithChunks(data, lineCount) {
-
+		//Chunkify the data
+		const chunkedData = chunkify(data, lineCount);
+		
+		//Create the read stream
+		const readStream = createChunkedReadStream(chunkedData);
+		
+		//Break the string apart into lines so that we can compare the 
+		//expected lines vs the actual lines emitted by the Bacon stream
+		let expectedLines = calculateExpectedLines(data);
+		
+		//Run the test with the read stream and expected lines
+		return testLineStreamWithNodeStream(readStream, expectedLines);		
 	}
 
 	/**
@@ -235,7 +251,7 @@ describe('testing the creation of line stream', () => {
 	 * 
 	 * @param  {string} chunkString - the string to be broken into chunks
 	 * @param  {number} lineCount - the number of lines in each chunk
-	 * @return {string[]} an array of string chunks
+	 * @returns {string[]} an array of string chunks
 	 */
 	function chunkify(chunkString, lineCount) {
 		return _.chunk(chunkString.trim().split('\n'), lineCount)
@@ -243,13 +259,56 @@ describe('testing the creation of line stream', () => {
 	}
 
 	/**
-	 * Creates a read stream from an array of strings
+	 * Creates a read stream from an array of strings that will result in a
+	 * stream that emits one chunk of data for every item in the array
+	 *
 	 * @param  {string[]} stringArray - The array of strings to convert
 	 *  to a readable stream
-	 * @return {Object} a read stream that will emit the contents of
+	 * @returns {Object} a read stream that will emit the contents of
 	 *  stringArray
 	 */
-	function createReadStream(stringArray) {
+	function createChunkedReadStream(stringArray) {
 		return streamify(stringArray);
+	}
+	
+	/**
+	 * Creates a read stream from single string that will result in a
+	 * stream that emits one chunk of data
+	 *
+	 * @param  {string} stringData - The string to convert
+	 *  to a readable stream
+	 * @returns {Object} a read stream that will emit the contents of
+	 *  stringData
+	 */
+	function createSingleChunkReadStream(stringData) {
+		const readStream = new stream.Readable();
+		readStream._read = () => {};
+		readStream.push(stringData);
+		readStream.push(null);		
+		
+		return readStream;
+	}
+	
+	/**
+	 * Calculates the expected lines from a single string containing text
+	 * separated by newlines
+	 * 
+	 * @param {string} dataString - the string containing lines of text
+	 * @returns {string[]} an array where each item is the text of an 
+	 *	expected line without the newline
+	 */	
+	function calculateExpectedLines(dataString) {
+		//We need to remove any empty strings from the end of the expected
+		//lines, since those won't be emitted
+		let expectedLines = dataString.split('\n')
+			.reduce((array, item, index, originalArray) => {
+				if(item !== "" || index !== originalArray.length - 1) {
+					array.push(item);
+				}
+				
+				return array;
+			}, []);
+			
+		return expectedLines;
 	}
 });

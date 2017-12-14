@@ -40,17 +40,16 @@ function createAutoPauseLineStream(readStream) {
 		
 		//Set an event handler for the line event
 		lineReader.on('line', lineString => {
-			console.log("line read from Node stream: ", lineString);
 			//Add the line to the line buffer
 			lineQueue.enq(lineString);
 
+			//Pause the line reader
+			readStream.pause();
+			
 			//If the stream is not currently paused, emit a line
 			if(!paused) {
 				emitLine();
 			}
-			
-			//Pause the line reader
-			readStream.pause();
 		});		
 		
 		//Set an event handler for the close event, which indicates
@@ -67,24 +66,18 @@ function createAutoPauseLineStream(readStream) {
 		
 		//Emits a line if possible
 		function emitLine() {	
-			console.log("Size of the line queue is ", lineQueue.size());		
 			if(lineQueue.size() > 0)
 			{				
 				pause();
 
-				console.log("Emitting the next line: ", lineQueue.peek());
 				sink({line: lineQueue.deq(), resume});
 			}
 			else if(streamEnd) {
-				console.log("End of stream");
 				sink(new Bacon.End());
 			}
 			else {
-				console.log("Resuming the line reader");
-				console.log(readStream.resume);
 				//If we've run out of lines to emit
 				readStream.resume();
-				console.log(readStream);
 			}
 		}
 		
@@ -97,7 +90,6 @@ function createAutoPauseLineStream(readStream) {
 		function resume() {
 			paused = false;
 			
-			console.log("Calling to emit a line");
 			emitLine();
 		}		
 		
