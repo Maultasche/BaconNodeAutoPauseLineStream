@@ -25,11 +25,7 @@ function createAutoPauseLineStream(readStream) {
 	//chunks, but it will not immediately stop lines from being emitted. So
 	//we'll store emitted lines in the line queue until it's time to emit them.
 	const lineQueue = new Queue();
-
-	//Set an event handler for the error events
-	readStream.on('error', error => sink(new Bacon.Error(error)));
-	lineReader.on('error', error => sink(new Bacon.Error(error)));
-		
+	
 	//Keep track of whether the stream has ended
 	let streamEnd = false;
 	
@@ -38,6 +34,9 @@ function createAutoPauseLineStream(readStream) {
 		//Keep track of whether the stream is currently paused
 		let paused = false;
 		
+		//Set an event handler for the error events
+		lineReader.on('error', error => sink(new Bacon.Error(error)));
+	
 		//Set an event handler for the line event
 		lineReader.on('line', lineString => {
 			//Add the line to the line buffer
